@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.14.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">    
+</head>
+<body>    
+    <section class="centered-section">
+        <img src="logo.svg" alt="logo">
+        <form class="book-form">
+            <p class="message"></p>
+            
+            <div class="file-container">
+                <h3 id="list-title">Book List</h3>    
+                <button class="file-btn" type="button" id="openBtn">Open</button>
+                <button class="file-btn" type="button" id="saveAsBtn">Save as</button>
+            </div>
+            <div class="form-control">
+                <input type="text" placeholder="e.g.book" id="input-box">
+                <button type="submit" class="sub-btn">add</button>
+            </div>
+        </form>
+        <div class="book-container">
+            <div class="book-list">
+
+            </div>
+            <button type="button" class="clr-btn">clear</button>
+        </div>
+    </section>       
+    <script src="app.js"></script>
+</body>
+</html>
+
