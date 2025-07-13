@@ -197,7 +197,7 @@ p{
   border-radius: var(--radius);
   margin: 1px;
   width: 5rem;
-  background: var(--clr-grey-10);
+  background: var(--clr-grey-9);
 }
 .file-btn:hover{
   background: var(--clr-grey-8);
