@@ -20,16 +20,14 @@ openFileBtn.addEventListener("click", async () => {
 
 saveAsBtn.addEventListener("click", async () => {
     await setListName()
-    const books = Array.from(document.querySelectorAll(".title")).map(t => t.innerText).join("\n")
-    console.log(books)
     const response = await fetch(`${http}/saveas${listQuery}`, {
         method : "POST",
         headers : {'content-type' : 'text/plain'},
-        body : books
+        body : currentList
     })
     if (response.ok) {
         msgTxt.innerHTML = "List saved"
-        msgTxt.classList.add("message-success")        
+        msgTxt.classList.add("message-success")
         await loadBooks()
         bookListTitle.innerText = currentList
     } else {
@@ -39,7 +37,7 @@ saveAsBtn.addEventListener("click", async () => {
     setTimeout(() => {
         msgTxt.innerHTML = ""
         msgTxt.classList.remove("message-success", "message-danger")
-    }, 1500)    
+    }, 1500)
 })
 
 edit_case = false
@@ -49,7 +47,7 @@ window.onload = loadBooks
 bookForm.addEventListener("submit", async (e) => {
     e.preventDefault()
     const book = bookInput.value.trim()
-    if (edit_case) {         
+    if (edit_case) {
         bookInput.value = ""
         await fetch(`${http}/edit${listQuery}`, {
             method : "PUT",
@@ -89,9 +87,8 @@ bookForm.addEventListener("submit", async (e) => {
 clrBtn.addEventListener("click", clearTheList)
 
 async function loadBooks() {
-    const response = await fetch(`${http}/books${listQuery}`)
-    const books = await response.text()
-    const bookArray = Array.from(books.split('\n'))
+    const response = await fetch(`${http}/books${listQuery}`)    
+    const bookArray = await response.json()
     bookList.innerHTML = ""
     bookArray.forEach((book) => {     
         const article = document.createElement("article")

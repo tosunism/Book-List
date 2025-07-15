@@ -1,14 +1,15 @@
+import 'dotenv/config'
 import { createServer, get } from 'http'
 import { appendFile, existsSync, readFile, writeFile } from 'fs'
 import { resolve } from 'path'
+import db from './db.js'
 
 
 const server = createServer((req, res) => {
   const method = req.method
   const url = req.url
   const params = new URL(req.url, `http://${req.headers.host}`).searchParams
-  const currentList = params.get('list')
-  const fPath = `./textdata/${currentList}.txt`
+  const currentList = params.get('list')  
   const urlPathName = req.url.split('?')[0]
 
   if (method === 'GET' && (url === '/' || url === '/index.html')) {
@@ -20,7 +21,7 @@ const server = createServer((req, res) => {
       }
       res.writeHead(200, {'content-type':'text/html'})
       res.end(data)
-    })      
+    })
     return
   }
 
@@ -28,7 +29,7 @@ const server = createServer((req, res) => {
     (async () => {
       try {
         const bookToAdd = await getBookName(req)        
-        const resMsg = await appendToFile(fPath, bookToAdd)
+        const resMsg = await addBookToDB(currentList, bookToAdd)
         res.writeHead(200, {'content-type':'text/plain'})
         res.end(resMsg)
       } catch (err) {
@@ -38,37 +39,18 @@ const server = createServer((req, res) => {
     })()
     return
   }
-
+  
   if ( method === 'POST' && urlPathName === '/saveas') {
-    if (!currentList) {
-      res.writeHead(400, {'content-type' : 'text/plain'})
-      res.end("Missing list name")
-      return
-    }
-    const safeList = currentList.replace(/[^a-zA-Z0-9_ \-]/g, '')
-    const newFilePath = `./textdata/${safeList}.txt`
-    if (existsSync(newFilePath)) {
-      res.writeHead(500)
-      res.end("File already exists")
-      return
-    }
-    let body = ''
-    req.on('data', ch => {body += ch.toString()})    
-    req.on('end', async () => {
-      const booksArray = body.split('\n')
-      await writeToFile(newFilePath, booksArray)
-      res.writeHead(200)
-      res.end('List saved')      
-    })
+    handleSaveAs(req, res, currentList)
     return
-  }
+  }  
   
   if (method === 'GET' && urlPathName === '/books') {
     (async () => {
       try {
-        const latestBookList = await readFromFile(fPath)
-        res.writeHead(200, {'content-type':'text/plain'})
-        res.end(latestBookList.join('\n'))
+        const latestBookList = await readFromDB(currentList)
+        res.writeHead(200, {'content-type':'application/json'})
+        res.end(JSON.stringify(latestBookList))
       } catch {
         res.writeHead(500)
         res.end('Error reading from file')
@@ -76,14 +58,12 @@ const server = createServer((req, res) => {
     })()
     return
   }
-
+ 
   if (method === 'DELETE' && urlPathName === '/delete') {
     (async () => {
       try {
         const bookToDelete = await getBookName(req)        
-        const currentBooks = await readFromFile(fPath)        
-        const updatedBooks = currentBooks.filter(book => book !== bookToDelete && book !== '')
-        await writeToFile(fPath, updatedBooks)
+        deleteBook(currentList, bookToDelete)
         res.writeHead(200)
         res.end('Book deleted')
       } catch {
@@ -97,9 +77,7 @@ const server = createServer((req, res) => {
   if (method === 'DELETE' && urlPathName === '/clear') {
     (async () => {
       try {
-        writeToFile(fPath, [""])
-        res.writeHead(200)
-        res.end("List cleared")
+        clearList(currentList)
       } catch {
         res.writeHead(500)
         res.end("Error on clear")
@@ -107,24 +85,16 @@ const server = createServer((req, res) => {
     })()
     return
   }
-  
+    
   if (method === 'PUT' && urlPathName === '/edit') {
     let body = ''
     try {
       req.on('data', chn => {body += chn})
       req.on('end', async () => {
         const {oldName, newName} = JSON.parse(body)
-        const currentBooks = await readFromFile(fPath)
-        const newBooks = currentBooks.map(bk => {
-          if (bk === oldName) {
-            return newName
-          } else {
-            return bk
-          }
-        })
-        writeToFile(fPath, newBooks)
+        editBook(currentList, oldName, newName)
         res.writeHead(200)
-        res.end("Book saved")
+        res.end("Book updated")
     })
     } catch {
       res.writeHead(500)
@@ -187,45 +157,76 @@ async function getBookName(req) {
     })
   })
 }
-async function readFromFile(fPath) {
-  return new Promise((res, rej) => {
-    if (!existsSync(fPath)) {
-      rej(new Error('List does not exist'))
+
+async function readFromDB(list) {
+  const result = await db.query(
+    'SELECT title FROM books WHERE list_name = $1 ORDER BY id ASC',
+  [list]
+  )
+  return result.rows.map(row => row.title)
+}
+
+async function addBookToDB(list, book) {
+  await db.query(
+    'INSERT INTO books (list_name, title) VALUES ($1, $2)',
+    [list, book]
+  )  
+}
+
+async function editBook(list, oldName, newName) {
+  await db.query(
+    'UPDATE books SET title = $1 WHERE list_name = $2 AND title = $3',
+    [newName, list, oldName]
+  )  
+}
+
+async function deleteBook(list, book) {
+  await db.query(
+    'DELETE FROM books WHERE list_name = $1 AND title = $2',
+    [list, book]
+  )
+}
+
+async function clearList(list) {
+  await db.query(
+    'DELETE FROM books WHERE list_name = $1',
+    [list]
+  )
+  return 'List cleared'
+}
+
+async function handleSaveAs(req, res, curList) {
+  try {    
+    if (!curList || curList === "") {
+      res.writeHead(500)
+      res.end('No name input')
       return
     }
-    readFile(fPath, 'utf-8', (err, data) => {
-      if (err){
-        rej(err)
+    let body = ""
+    req.on('data', chunk => body += chunk.toString())
+    req.on('end', async () => {
+      const newListName = body.trim()
+      const exists = await db.query(
+        'SELECT 1 FROM books WHERE list_name = $1 LIMIT 1',
+        [newListName]
+      )
+      if (exists.rows.length > 0) {
+        res.writeHead(409)
+        res.end("List already exists")
         return
       }
-      const books = data.trim() === '' ? [] : data.split("\n")
-      res(books)
+      await db.query(`
+        INSERT INTO books (list_name, title)
+        SELECT $1, title FROM books WHERE list_name = $2        
+        `, [newListName, curList])
+      res.end(200)  
+      res.writeHead("Save as successful")
     })
-  }) 
-}
-
-async function appendToFile(fPath, book) {
-  return new Promise((res, rej) => {
-    appendFile(fPath, "\n" + book.trim(), (err, data) => {
-      if (err){
-        rej(new Error('Error on save'))
-        return
-      }
-      res("Book Saved")
-    })
-  })
-}
-
-async function writeToFile(fPath, books) {
-  return new Promise((res, rej) => {
-    writeFile(fPath, books.join("\n"), (err, data) => {
-      if (err){
-        rej(err)
-        return
-      }
-      res('File updated')
-    })
-  })
+  } catch (err) {
+    console.error(err)
+    res.writeHead(500)
+    res.end("Error on save as")  
+  }
 }
 
 server.listen(3000, () => {
