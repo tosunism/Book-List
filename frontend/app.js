@@ -107,8 +107,7 @@ async function loadBooks() {
         edBtn.addEventListener("click", editBook)
         delBtn.addEventListener("click", () => {deleteBook(article)})
         bookList.appendChild(article)
-    })
-    return books
+    })    
 }
 
 async function editBook(v) {    
