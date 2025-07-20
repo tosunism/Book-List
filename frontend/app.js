@@ -19,11 +19,13 @@ openFileBtn.addEventListener("click", async () => {
 })
 
 saveAsBtn.addEventListener("click", async () => {
+    const oldListName = currentList
     await setListName()
+    const newListName = currentList    
     const response = await fetch(`${http}/saveas${listQuery}`, {
         method : "POST",
-        headers : {'content-type' : 'text/plain'},
-        body : currentList
+        headers : {'content-type' : 'application/json'},
+        body : JSON.stringify({oldListName, newListName})
     })
     if (response.ok) {
         msgTxt.innerHTML = "List saved"

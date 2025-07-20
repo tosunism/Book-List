@@ -40,7 +40,7 @@ const server = createServer((req, res) => {
     return
   }
   
-  if ( method === 'POST' && urlPathName === '/saveas') {
+  if ( method === 'POST' && urlPathName === '/saveas') {    
     handleSaveAs(req, res, currentList)
     return
   }  
@@ -205,10 +205,10 @@ async function handleSaveAs(req, res, curList) {
     let body = ""
     req.on('data', chunk => body += chunk.toString())
     req.on('end', async () => {
-      const newListName = body.trim()
+      const {oldList, newList} = JSON.parse(body)
       const exists = await db.query(
         'SELECT 1 FROM books WHERE list_name = $1 LIMIT 1',
-        [newListName]
+        [newList]
       )
       if (exists.rows.length > 0) {
         res.writeHead(409)
@@ -218,14 +218,14 @@ async function handleSaveAs(req, res, curList) {
       await db.query(`
         INSERT INTO books (list_name, title)
         SELECT $1, title FROM books WHERE list_name = $2        
-        `, [newListName, curList])
-      res.end(200)  
-      res.writeHead("Save as successful")
+        `, [newList, oldList])
+      res.writeHead(200)  
+      res.end("Save as successful")
     })
   } catch (err) {
     console.error(err)
     res.writeHead(500)
-    res.end("Error on save as")  
+    res.end("Error on save as")
   }
 }
 
