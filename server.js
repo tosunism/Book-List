@@ -45,6 +45,11 @@ const server = createServer((req, res) => {
     return
   }  
   
+  if (method === 'DELETE' && urlPathName === '/deletelist') {
+    deleteList(req, res)
+    return
+  }
+
   if (method === 'GET' && urlPathName === '/books') {
     (async () => {
       try {
@@ -56,6 +61,11 @@ const server = createServer((req, res) => {
         res.end('Error reading from file')
       }
     })()
+    return
+  }
+ 
+  if (method === 'GET' && urlPathName === '/mylists') {
+    showLists(req, res)
     return
   }
  
@@ -195,6 +205,30 @@ async function clearList(list) {
   return 'List cleared'
 }
 
+async function deleteList(req, res) {
+  const listToDelete = await getBookName(req)  
+  try {
+    await db.query('DELETE FROM books WHERE list_name = $1', [listToDelete])
+    res.writeHead(200)
+    res.end('List deleted')
+  } catch (err) {
+    res.writeHead(500)
+    res.end('Error deleting list: ' + err.message)
+  }
+}
+
+async function showLists(req, res) {  
+  try {
+    const result = await db.query('SELECT DISTINCT list_name FROM books')
+    const lists = result.rows.map(row => row.list_name)
+    res.writeHead(200, {'content-type': 'application/json'})
+    res.end(JSON.stringify(lists))
+  } catch (err) {    
+    res.writeHead(500)
+    res.end("Error on lists query" + err.message)
+  }
+}
+
 async function handleSaveAs(req, res, curList) {
   try {    
     if (!curList || curList === "") {
@@ -204,11 +238,11 @@ async function handleSaveAs(req, res, curList) {
     }
     let body = ""
     req.on('data', chunk => body += chunk.toString())
-    req.on('end', async () => {
-      const {oldList, newList} = JSON.parse(body)
+    req.on('end', async () => {      
+      const {oldListName, newListName} = JSON.parse(body)      
       const exists = await db.query(
         'SELECT 1 FROM books WHERE list_name = $1 LIMIT 1',
-        [newList]
+        [newListName]
       )
       if (exists.rows.length > 0) {
         res.writeHead(409)
@@ -218,7 +252,7 @@ async function handleSaveAs(req, res, curList) {
       await db.query(`
         INSERT INTO books (list_name, title)
         SELECT $1, title FROM books WHERE list_name = $2        
-        `, [newList, oldList])
+        `, [newListName, oldListName])
       res.writeHead(200)  
       res.end("Save as successful")
     })

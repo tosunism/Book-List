@@ -1,7 +1,5 @@
 import pkg from 'pg'
 
-console.log("DB:", process.env.DATABASE_URL)
-
 const { Pool } = pkg
 
 const pool = new Pool({

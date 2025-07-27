@@ -119,8 +119,7 @@ img {
     justify-content: center;
     align-items: center;
 }
-
-.book-item {
+.book-item, .list-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -131,15 +130,23 @@ img {
   border-radius: var(--radius);
   text-transform: capitalize;
 }
-.book-item:hover {
+.book-item, .list-item :hover {
   color: var(--clr-grey-5);
   background: var(--clr-grey-10);
+  cursor: pointer;
 }
-.book-item:hover .title {
+.book-item, list-item :hover .title {
   color: var(--clr-grey-5);
 }
 .book-item p {
   align-self: baseline;
+}
+.list-container {  
+  margin: 1rem;
+  background-color: var(--clr-grey-9);
+  color: var(--clr-grey-5);    
+  border-radius: var(--radius);
+  width: 400px;
 }
 .title {
   margin-bottom: 0;

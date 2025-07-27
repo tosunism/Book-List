@@ -7,6 +7,19 @@ const msgTxt = document.querySelector(".message")
 const clrBtn = document.querySelector(".clr-btn")
 const openFileBtn = document.getElementById("openBtn")
 const saveAsBtn = document.getElementById("saveAsBtn")
+const myListsBtn = document.getElementById("myListsBtn")
+const listContainer = document.querySelector(".list-container")
+
+let showListContainer = false
+const toggleListContainer = () => {
+    if (showListContainer) {
+        listContainer.style.display = "none"
+    } else {
+        listContainer.style.display = "block"
+    }
+    showListContainer = !showListContainer
+}
+
 
 let currentList = 'Book List'
 let listQuery = `?list=${encodeURIComponent(currentList)}`
@@ -18,10 +31,70 @@ openFileBtn.addEventListener("click", async () => {
     bookListTitle.innerText = currentList
 })
 
+myListsBtn.addEventListener("click", async () => {
+    const response = await fetch(`${http}/mylists`)
+    const lists = await response.json()    
+    listContainer.innerHTML = ""
+    lists.forEach((list) => {
+        const listItem = document.createElement("div")
+        listItem.classList.add("list-item")
+        const nameSpan = document.createElement("span")
+        nameSpan.innerText = list
+        listItem.appendChild(nameSpan)
+
+        const deleteListBtn = document.createElement("button")
+        deleteListBtn.type = "button"
+        deleteListBtn.innerHTML = `<i class="fas fa-trash"></i> DELETE LIST`
+        deleteListBtn.classList.add("del-btn")
+        deleteListBtn.addEventListener("click", async (v) => {            
+            v.stopPropagation()
+            if (!confirm(`Delete "${list}"?`)) {
+                return
+            }
+            const response = await fetch(`${http}/deletelist`, {
+                method: "DELETE",
+                headers: {'content-type':'text/plain'},
+                body: list
+            })
+            const text = await response.text()
+            console.log(text)
+            if (response.ok) {
+                msgTxt.innerHTML = "List deleted"
+                msgTxt.classList.add("message-success")
+                setTimeout(() => {
+                    msgTxt.innerHTML = ""
+                    msgTxt.classList.remove("message-success")
+                }, 1500)
+                await loadBooks()
+            } else {
+                msgTxt.innerHTML = "Error deleting list"
+                msgTxt.classList.add("message-danger")
+                setTimeout(() => {
+                    msgTxt.innerHTML = ""
+                    msgTxt.classList.remove("message-danger")
+                }, 1500)
+            }
+        })
+        listItem.appendChild(deleteListBtn)
+        listItem.addEventListener("click", async () => {
+            currentList = list
+            listQuery = listQuery = `?list=${encodeURIComponent(currentList)}`
+            bookListTitle.innerText = currentList
+            await loadBooks()
+            // setTimeout(() => {
+            //     listContainer.style.display = "none", 1500
+            // })
+        })
+        listContainer.appendChild(listItem)
+    })
+    // listContainer.style.display = "block"
+    toggleListContainer()
+})
+
 saveAsBtn.addEventListener("click", async () => {
     const oldListName = currentList
     await setListName()
-    const newListName = currentList    
+    const newListName = currentList
     const response = await fetch(`${http}/saveas${listQuery}`, {
         method : "POST",
         headers : {'content-type' : 'application/json'},
