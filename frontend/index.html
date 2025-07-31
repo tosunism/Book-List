@@ -8,13 +8,20 @@
     <link rel="stylesheet" href="styles.css">      
 </head>
 <body>    
+    <div class="auth-form">
+        <input type="email" id="auth-email" placeholder="Email">
+        <input type="password" id="auth-password" placeholder="Password">
+        <button id="loginBtn">Login</button>
+        <button id="regBtn">Register</button>
+        <button id="logoutBtn" style="display:none">Logout</button>
+    </div>
     <section class="centered-section">
         <img src="logo.svg" alt="logo">
         <form class="book-form">
             <p class="message"></p>
             
             <div class="file-container">
-                <h3 id="list-title">Book List</h3>    
+                <h3 id="list-title">Book List</h3>
                 <button class="file-btn" type="button" id="openBtn">Open</button>
                 <button class="file-btn" type="button" id="saveAsBtn">Save as</button>
                 <button class="file-btn" type="button" id="myListsBtn">My Lists</button>
@@ -34,8 +41,8 @@
             </div>
             <button type="button" class="clr-btn">clear</button>
         </div>        
-    </section>       
-    <script src="app.js"></script>
+    </section>    
+    <script type="module" src="app.js"></script>
 </body>
 </html>
 

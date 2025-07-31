@@ -1,3 +1,9 @@
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+const supabase = createClient(
+    'https://iurqiqsczhfsmtpcbhjh.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1cnFpcXNjemhmc210cGNiaGpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0MzAxMTksImV4cCI6MjA2ODAwNjExOX0._hjKaRNKy7eUFzOT318nrIr3976_X7Uki0ahGB-Nxmg'
+)
+
 const submitBtn = document.querySelector(".sub-btn")
 const bookInput = document.querySelector("#input-box")
 const bookList = document.querySelector(".book-list")
@@ -19,7 +25,6 @@ const toggleListContainer = () => {
     }
     showListContainer = !showListContainer
 }
-
 
 let currentList = 'Book List'
 let listQuery = `?list=${encodeURIComponent(currentList)}`
@@ -115,7 +120,7 @@ saveAsBtn.addEventListener("click", async () => {
     }, 1500)
 })
 
-edit_case = false
+let edit_case = false
 let oldBookName = ""
 window.onload = loadBooks
 
@@ -226,3 +231,68 @@ async function setListName() {
         listQuery = `?list=${encodeURIComponent(listName)}`        
     }    
 }
+
+async function signUp(email, password) {
+    const {user, error} = await supabase.auth.signUp({email: email, password: password})
+    if (error) return alert("Error:" + error.message)
+    alert("Check your email to confirm account!")    
+}
+async function signIn(email, password) {
+    const {user, session, error} = await supabase.auth.signInWithPassword({ email: email, password: password})
+    if (error) return alert("Login failed: " + error.message)
+    const token = session.access_token
+    localStorage.setItem("supabase_token", token)
+    alert("Logged in!")  
+}
+
+const loginBtn = document.getElementById("loginBtn");
+const registerBtn = document.getElementById("regBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+const emailInput = document.getElementById("auth-email")
+const passwordInput = document.getElementById("auth-password");
+
+loginBtn.addEventListener("click", async () => {
+    const email = emailInput.value
+    const password = passwordInput.value
+    const { user, error } = await supabase.auth.signInWithPassword(email, password)
+    if (error) {alert("Login failed" + error.message)}
+    else {
+        alert ("Logged in as" + user.email)
+        afterLogin()
+    }
+})
+
+registerBtn.addEventListener("click", async () => {
+    const email = emailInput.value
+    const password = passwordInput.value
+    const {user, error} = await supabase.auth.signUp({email, password})
+    if (error) {alert("Failed to register" + error.message)}
+    else {
+        alert("Check your email to confirm")
+    }
+})
+
+logoutBtn.addEventListener("click", async () => {
+    await supabase.auth.signOut()
+    alert("Logged out")
+    location.reload
+})
+
+async function afterLogin() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    loginBtn.style.display = "none";
+    registerBtn.style.display = "none";
+    logoutBtn.style.display = "inline";
+    currentList = user.email + "'s List";
+    listQuery = `?list=${encodeURIComponent(currentList)}`;
+    bookListTitle.innerText = currentList;
+    await loadBooks();
+  }
+}
+
+supabase.auth.getSession().then(({ data: { session } }) => {
+  if (session) {
+    afterLogin();
+  }
+});

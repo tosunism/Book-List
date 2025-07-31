@@ -3,9 +3,38 @@ import { createServer, get } from 'http'
 import { appendFile, existsSync, readFile, writeFile } from 'fs'
 import { resolve } from 'path'
 import db from './db.js'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  'https://iurqiqsczhfsmtpcbhjh.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1cnFpcXNjemhmc210cGNiaGpoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MjQzMDExOSwiZXhwIjoyMDY4MDA2MTE5fQ.94dzf5TP8xLMwLAiFRY-DPoDoAw_q3IQbFBSdeQuq3E'  
+)
+
+async function authenticateUser(req) {
+  const authHeader = req.headers['authorization']
+  const token = authHeader && authHeader.split(' ')[1]
+  if (!token) return {error: 'No token'}
+  const {data: {user}, error} = await supabase.auth.getUser(token)
+  if (error || !user) return {error:'Invalid token'}
+  return {user}
+}
+
+function withAuth(handler) {
+  return async function(req, res) {
+    const { user, error } = await authenticateUser(req)
+    if (error) {
+      res.writeHead(401, {'Content-type':'application/json'})
+      res.end(JSON.stringify({error}))
+      return
+    }
+    req.user = user
+    await handler(req, res, user)
+  }
+}
+
+const server = createServer((req, res) => { 
 
 
-const server = createServer((req, res) => {
   const method = req.method
   const url = req.url
   const params = new URL(req.url, `http://${req.headers.host}`).searchParams
@@ -26,7 +55,7 @@ const server = createServer((req, res) => {
   }
 
   if (method === 'POST' && urlPathName === '/save') {
-    (async () => {
+    withAuth(async (req, res, user) => {
       try {
         const bookToAdd = await getBookName(req)        
         const resMsg = await addBookToDB(currentList, bookToAdd)
@@ -36,10 +65,10 @@ const server = createServer((req, res) => {
         res.writeHead(500, {'content-type':'text/plain'})
         res.end(err.message)
       }
-    })()
+    })(req, res)
     return
   }
-  
+
   if ( method === 'POST' && urlPathName === '/saveas') {    
     handleSaveAs(req, res, currentList)
     return
