@@ -11,10 +11,21 @@
     <div class="auth-form">
         <input type="email" id="auth-email" placeholder="Email">
         <input type="password" id="auth-password" placeholder="Password">
-        <button id="loginBtn">Login</button>
-        <button id="regBtn">Register</button>
-        <button id="logoutBtn" style="display:none">Logout</button>
+        <button class="login-btn" id="loginBtn">Login</button>
+        <button class="login-btn" id="regBtn">Register</button>
+        <button class="login-btn" id="logoutBtn" style="display:none">Logout</button>
     </div>
+    <p id="forgot-txt">Forgot Password?</p>
+    <div id="forgotPasswordForm" style="display: none;">
+        <input type="email" id="forgotPasswordInput" placeholder="Email">
+        <button id="forgotPasswordBtn" class="login-btn">Send Reset Link</button>
+    </div>
+    <div id="resetPasswordForm" style="display: none;">
+        <h2>Reset Password</h2>
+        <input type="password" id="resetPasswordInput" placeholder="Password">
+        <button id="resetPasswordBtn">Update Password</button>
+    </div>
+    <p class="message-danger" id="password-msg"></p>
     <section class="centered-section">
         <img src="logo.svg" alt="logo">
         <form class="book-form">
@@ -45,4 +56,3 @@
     <script type="module" src="app.js"></script>
 </body>
 </html>
-

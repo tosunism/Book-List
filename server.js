@@ -19,21 +19,18 @@ async function authenticateUser(req) {
   return {user}
 }
 
-function withAuth(handler) {
-  return async function(req, res) {
-    const { user, error } = await authenticateUser(req)
-    if (error) {
-      res.writeHead(401, {'Content-type':'application/json'})
-      res.end(JSON.stringify({error}))
-      return
-    }
-    req.user = user
-    await handler(req, res, user)
+async function withAuth(req, res, handler){
+  const {user, error} = await authenticateUser(req)
+  if (error){
+    res.writeHead(500)
+    res.end(JSON.stringify(error))
+    return
   }
+  req.user = user
+  await handler(req, res, user)
 }
 
 const server = createServer((req, res) => { 
-
 
   const method = req.method
   const url = req.url
@@ -55,90 +52,82 @@ const server = createServer((req, res) => {
   }
 
   if (method === 'POST' && urlPathName === '/save') {
-    withAuth(async (req, res, user) => {
+    withAuth(req, res, async (req, res, user) => {
       try {
         const bookToAdd = await getBookName(req)        
-        const resMsg = await addBookToDB(currentList, bookToAdd)
+        const resMsg = await addBookToDB(currentList, bookToAdd, user)
         res.writeHead(200, {'content-type':'text/plain'})
         res.end(resMsg)
       } catch (err) {
         res.writeHead(500, {'content-type':'text/plain'})
         res.end(err.message)
       }
-    })(req, res)
+    })
     return
   }
 
-  if ( method === 'POST' && urlPathName === '/saveas') {    
-    handleSaveAs(req, res, currentList)
+  if ( method === 'POST' && urlPathName === '/saveas') {  
+    withAuth(req, res, handleSaveAs)
     return
   }  
   
   if (method === 'DELETE' && urlPathName === '/deletelist') {
-    deleteList(req, res)
+    withAuth(req, res, deleteList)    
     return
   }
 
   if (method === 'GET' && urlPathName === '/books') {
-    (async () => {
-      try {
-        const latestBookList = await readFromDB(currentList)
+    withAuth(req, res, async (req, res, user) => {
+      try {        
+        const latestBookList = await readFromDB(currentList, user)
         res.writeHead(200, {'content-type':'application/json'})
         res.end(JSON.stringify(latestBookList))
       } catch {
         res.writeHead(500)
         res.end('Error reading from file')
       }
-    })()
+    })
     return
   }
  
-  if (method === 'GET' && urlPathName === '/mylists') {
-    showLists(req, res)
-    return
-  }
- 
-  if (method === 'DELETE' && urlPathName === '/delete') {
-    (async () => {
-      try {
-        const bookToDelete = await getBookName(req)        
-        deleteBook(currentList, bookToDelete)
-        res.writeHead(200)
-        res.end('Book deleted')
-      } catch {
-        res.writeHead(500)
-        res.end('Error on delete')
-      }
-    })()
+  if (method === 'GET' && urlPathName === '/mylists') {    
+    withAuth(req, res, showLists)    
     return
   }
 
-  if (method === 'DELETE' && urlPathName === '/clear') {
-    (async () => {
+  if (method === 'DELETE' && urlPathName === '/delete'){
+    withAuth(req, res, async (req, res, user) => {
       try {
-        clearList(currentList)
-      } catch {
+        const bookToDelete = await getBookName(req)
+        await deleteBook(currentList, bookToDelete, user)
+        res.writeHead(200)
+        res.end("Book deleted")
+      } catch (err) {
         res.writeHead(500)
-        res.end("Error on clear")
-      }      
-    })()
+        res.end(err.message)
+      }
+    })
     return
   }
-    
-  if (method === 'PUT' && urlPathName === '/edit') {
-    let body = ''
-    try {
-      req.on('data', chn => {body += chn})
-      req.on('end', async () => {
-        const {oldName, newName} = JSON.parse(body)
-        editBook(currentList, oldName, newName)
+
+  if (method === 'DELETE' && urlPathName === '/clear'){
+    withAuth(req, res, (req, res, user) => {
+      try {
+        const result = clearList(currentList, user)
         res.writeHead(200)
-        res.end("Book updated")
+        res.end(result)
+      } catch (err) {
+        res.writeHead(500)
+        res.end("Error on clear " + err.message)
+      }
     })
-    } catch {
-      res.writeHead(500)
-      res.end("Error on update")
-    }
+    return
+  }    
+
+  if (method === 'PUT' && urlPathName === '/edit'){
+    withAuth(req, res, async (req, res, user) => {
+      await editBook(req, res, user, currentList)
+    })
     return
   }
 
@@ -197,47 +186,65 @@ async function getBookName(req) {
   })
 }
 
-async function readFromDB(list) {
+async function readFromDB(list, user) {
   const result = await db.query(
-    'SELECT title FROM books WHERE list_name = $1 ORDER BY id ASC',
-  [list]
+    'SELECT title FROM books WHERE list_name = $1 AND user_id = $2 ORDER BY id ASC',
+  [list, user.id]
   )
   return result.rows.map(row => row.title)
 }
 
-async function addBookToDB(list, book) {
+async function addBookToDB(list, book, user) {
   await db.query(
-    'INSERT INTO books (list_name, title) VALUES ($1, $2)',
-    [list, book]
+    'INSERT INTO books (list_name, title, user_id) VALUES ($1, $2, $3)',
+    [list, book, user.id]
   )  
 }
 
-async function editBook(list, oldName, newName) {
-  await db.query(
-    'UPDATE books SET title = $1 WHERE list_name = $2 AND title = $3',
-    [newName, list, oldName]
-  )  
+async function editBook(req, res, user, list){  
+    try {
+      const body = await getReqBody(req)
+      const { oldName, newName} = JSON.parse(body)
+      await db.query(
+          'UPDATE books SET title = $1 WHERE list_name = $2 AND title = $3 AND user_id = $4',
+          [newName, list, oldName, user.id]
+      )
+      res.writeHead(200) 
+      res.end("Book updated")
+    } catch {
+      res.writeHead(500)
+      res.end("Error on update")
+    }    
 }
 
-async function deleteBook(list, book) {
+async function getReqBody(req){
+  return new Promise((res, rej) => {
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', () => res(body))
+    req.on('error', rej)
+  })
+}
+
+async function deleteBook(list, book, user) {
   await db.query(
-    'DELETE FROM books WHERE list_name = $1 AND title = $2',
-    [list, book]
+    'DELETE FROM books WHERE list_name = $1 AND title = $2 AND user_id = $3',
+    [list, book, user.id]
   )
 }
 
-async function clearList(list) {
+async function clearList(list, user) {
   await db.query(
-    'DELETE FROM books WHERE list_name = $1',
-    [list]
+    'DELETE FROM books WHERE list_name = $1 AND user_id = $2',
+    [list, user.id]
   )
   return 'List cleared'
 }
 
-async function deleteList(req, res) {
+async function deleteList(req, res, user) {
   const listToDelete = await getBookName(req)  
   try {
-    await db.query('DELETE FROM books WHERE list_name = $1', [listToDelete])
+    await db.query('DELETE FROM books WHERE list_name = $1 AND user_id = $2', [listToDelete, user.id])
     res.writeHead(200)
     res.end('List deleted')
   } catch (err) {
@@ -246,9 +253,9 @@ async function deleteList(req, res) {
   }
 }
 
-async function showLists(req, res) {  
+async function showLists(req, res, user) {  
   try {
-    const result = await db.query('SELECT DISTINCT list_name FROM books')
+    const result = await db.query('SELECT DISTINCT list_name FROM books WHERE user_id = $1', [user.id])
     const lists = result.rows.map(row => row.list_name)
     res.writeHead(200, {'content-type': 'application/json'})
     res.end(JSON.stringify(lists))
@@ -258,9 +265,11 @@ async function showLists(req, res) {
   }
 }
 
-async function handleSaveAs(req, res, curList) {
+async function handleSaveAs(req, res, user) {
   try {    
-    if (!curList || curList === "") {
+    const params = new URL(req.url, `http://${req.headers.host}`).searchParams
+    const currentList = params.get('list')
+    if (!currentList || currentList === "") {
       res.writeHead(500)
       res.end('No name input')
       return

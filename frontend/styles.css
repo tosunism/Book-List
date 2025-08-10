@@ -185,7 +185,8 @@ p{
   transition: var(--transition);
 }
 .sub-btn,
-.file-btn{
+.file-btn,
+.login-btn{
     background: var(--clr-primary-8);
     flex: 0 0 5rem;
     border: none;
@@ -200,15 +201,27 @@ p{
     border-bottom-right-radius: var(--radius);
     transition: var(--transition);
 }
-.file-btn{
+.file-btn,
+.login-btn{
   border-radius: var(--radius);
   margin: 1px;
-  width: 5rem;
+  width: auto;
   background: var(--clr-grey-9);
 }
-.file-btn:hover{
+.file-btn:hover,
+.login-btn:hover{
+  cursor: pointer;
   background: var(--clr-grey-8);
 }
+.login-btn{
+  color: var(--clr-grey-3);
+  background: var(--clr-grey-7);
+  border-radius: 0.25rem;
+}
+.login-btn:hover{
+  background: var(--clr-grey-5);
+}
+
 .ed-btn,
 .del-btn {
   background: transparent;
@@ -238,5 +251,14 @@ p{
     color: var(--clr-red-light);
     font-size: 0.85rem;
     letter-spacing: var(--spacing);
-    cursor: pointer;    
+    cursor: pointer;
+}
+#forgot-txt {
+  color: var(--clr-red-light);
+  text-align: baseline;
+  font-size: 0.85rem;
+  cursor: pointer;  
+}
+#forgotPasswordForm{
+  margin-top: 30px;  
 }

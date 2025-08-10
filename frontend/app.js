@@ -1,8 +1,116 @@
+
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 const supabase = createClient(
     'https://iurqiqsczhfsmtpcbhjh.supabase.co',
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1cnFpcXNjemhmc210cGNiaGpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0MzAxMTksImV4cCI6MjA2ODAwNjExOX0._hjKaRNKy7eUFzOT318nrIr3976_X7Uki0ahGB-Nxmg'
 )
+
+const forgotPasswordForm = document.getElementById('forgotPasswordForm');
+const resetPasswordForm = document.getElementById('resetPasswordForm');
+const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
+const forgotPasswordInput = document.getElementById("forgotPasswordInput");
+const resetPasswordBtn = document.getElementById("resetPasswordBtn");
+const resetPasswordInput = document.getElementById("resetPasswordInput");
+const passwordMsg = document.getElementById("password-msg");
+
+
+window.addEventListener("load", async () => {
+  // Listen for auth state changes (password recovery, sign in/out)
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      passwordMsg.innerText = "Password Reset";
+      forgotPasswordForm.style.display = "none";
+      resetPasswordForm.style.display = "block";
+    } 
+    else if (event === 'SIGNED_IN') {
+      afterLogin();
+    } 
+    else if (event === 'SIGNED_OUT') {
+      loginBtn.style.display = "inline";
+      registerBtn.style.display = "inline";
+      logoutBtn.style.display = "none";
+      currentList = 'Book List';
+      listQuery = `?list=${encodeURIComponent(currentList)}`;
+      bookListTitle.innerText = currentList;
+      bookList.innerHTML = "";
+      forgotTxt.style.display = "inline";
+      resetPasswordForm.style.display = "none";
+      passwordMsg.innerText = "";
+    }
+  });
+
+  // Immediately check existing session on page load
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    afterLogin();
+  } else {
+    loginBtn.style.display = "inline";
+    registerBtn.style.display = "inline";
+    logoutBtn.style.display = "none";    
+    resetPasswordForm.style.display = "none";
+  }
+});
+
+async function authFetch(){
+    const session = (await supabase.auth.getSession()).data.session
+    return session?.access_token
+}
+
+function showMsg(txt){
+    passwordMsg.innerText = txt
+    setTimeout(() => passwordMsg.innerText = "", 2000)
+}
+forgotPasswordBtn.addEventListener("click", async () => {
+    const email = forgotPasswordInput.value.trim()
+    if (!email) {
+        showMsg("No email")
+        return
+    }
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'http://localhost:3000/index.html'
+    })
+    if (error) {
+        showMsg(error.message)
+    } else {
+        showMsg('Reset email sent')
+    }
+})
+
+resetPasswordBtn.addEventListener("click", async () => {
+    const newPassword = resetPasswordInput.value.trim()
+    if(!newPassword) {
+        showMsg("No password")
+        return
+    }
+    const { data, error } = await supabase.auth.updateUser({password: newPassword})
+    if (error) {
+        showMsg(error.message)
+    } else {
+        showMsg("Password updated.") 
+         await supabase.auth.signOut();
+
+  // Update UI state for logged out user:
+  loginBtn.style.display = "inline";
+  registerBtn.style.display = "inline";
+  logoutBtn.style.display = "none";
+
+  // Reset forms & inputs:
+  resetPasswordForm.style.display = "none";
+  forgotPasswordForm.style.display = "block";
+  resetPasswordInput.value = "";
+
+  currentList = 'Book List';
+  listQuery = `?list=${encodeURIComponent(currentList)}`;
+  bookListTitle.innerText = currentList;
+
+  // Optionally clear book list display since no user is logged in
+  bookList.innerHTML = "";
+
+  setTimeout(() => {
+    passwordMsg.innerText = "";
+  }, 1500);       
+    }    
+})
 
 const submitBtn = document.querySelector(".sub-btn")
 const bookInput = document.querySelector("#input-box")
@@ -15,6 +123,11 @@ const openFileBtn = document.getElementById("openBtn")
 const saveAsBtn = document.getElementById("saveAsBtn")
 const myListsBtn = document.getElementById("myListsBtn")
 const listContainer = document.querySelector(".list-container")
+const forgotTxt = document.getElementById("forgot-txt")
+
+forgotTxt.addEventListener("click", () => {
+    forgotPasswordForm.style.display = "block";
+});
 
 let showListContainer = false
 const toggleListContainer = () => {
@@ -36,8 +149,15 @@ openFileBtn.addEventListener("click", async () => {
     bookListTitle.innerText = currentList
 })
 
-myListsBtn.addEventListener("click", async () => {
-    const response = await fetch(`${http}/mylists`)
+myListsBtn.addEventListener("click", async () => {    
+    const token = await authFetch()    
+    const response = await fetch(`${http}/mylists`, {
+        method: "GET",
+        headers: {
+            "content-type" : "text/plain",
+            "Authorization": `Bearer ${token}`            
+        }
+    })    
     const lists = await response.json()    
     listContainer.innerHTML = ""
     lists.forEach((list) => {
@@ -56,13 +176,15 @@ myListsBtn.addEventListener("click", async () => {
             if (!confirm(`Delete "${list}"?`)) {
                 return
             }
+            const token = await authFetch()
             const response = await fetch(`${http}/deletelist`, {
                 method: "DELETE",
-                headers: {'content-type':'text/plain'},
+                headers: {'content-type':'text/plain',
+                        'Authorization': `Bearer ${token}`
+                },
                 body: list
             })
-            const text = await response.text()
-            console.log(text)
+            const text = await response.text()            
             if (response.ok) {
                 msgTxt.innerHTML = "List deleted"
                 msgTxt.classList.add("message-success")
@@ -85,14 +207,10 @@ myListsBtn.addEventListener("click", async () => {
             currentList = list
             listQuery = listQuery = `?list=${encodeURIComponent(currentList)}`
             bookListTitle.innerText = currentList
-            await loadBooks()
-            // setTimeout(() => {
-            //     listContainer.style.display = "none", 1500
-            // })
+            await loadBooks()            
         })
         listContainer.appendChild(listItem)
-    })
-    // listContainer.style.display = "block"
+    })    
     toggleListContainer()
 })
 
@@ -100,9 +218,12 @@ saveAsBtn.addEventListener("click", async () => {
     const oldListName = currentList
     await setListName()
     const newListName = currentList
+    const token = await authFetch()
     const response = await fetch(`${http}/saveas${listQuery}`, {
         method : "POST",
-        headers : {'content-type' : 'application/json'},
+        headers : {'content-type' : 'application/json',
+                'Authorization': `Bearer ${token}`
+        },
         body : JSON.stringify({oldListName, newListName})
     })
     if (response.ok) {
@@ -126,13 +247,14 @@ window.onload = loadBooks
 
 bookForm.addEventListener("submit", async (e) => {
     e.preventDefault()
+    const token = await authFetch()    
     const book = bookInput.value.trim()
     if (edit_case) {
-        bookInput.value = ""
+        bookInput.value = ""        
         await fetch(`${http}/edit${listQuery}`, {
             method : "PUT",
-            headers : {
-                "content-type" : "text/plain"
+            headers : {"content-type" : "text/plain",
+                "Authorization": `Bearer ${token}`
             },
             body : JSON.stringify({oldName : oldBookName, newName : book})
         })        
@@ -144,14 +266,15 @@ bookForm.addEventListener("submit", async (e) => {
         return
     }
     
-    if (book) {
-        await fetch(`${http}/save${listQuery}`, {
+    if (book) {          
+        const res = await fetch(`${http}/save${listQuery}`, {
             method : "POST",
             headers : {
-                "content-type" : "text/plain"
+                "content-type" : "text/plain",
+                "Authorization": `Bearer ${token}`
             },
             body : book
-        })    
+        })        
         bookInput.value = ""
         await loadBooks()
     } else {
@@ -167,7 +290,14 @@ bookForm.addEventListener("submit", async (e) => {
 clrBtn.addEventListener("click", clearTheList)
 
 async function loadBooks() {
-    const response = await fetch(`${http}/books${listQuery}`)    
+    const token = await authFetch()
+    const response = await fetch(`${http}/books${listQuery}`, {
+        method: "GET",
+        headers: {
+            'content-type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        }
+    })    
     const bookArray = await response.json()
     bookList.innerHTML = ""
     bookArray.forEach((book) => {     
@@ -198,11 +328,13 @@ async function editBook(v) {
 }
 
 async function deleteBook(bookToDelete) {   
-    const inBook = bookToDelete.firstElementChild.innerHTML        
+    const inBook = bookToDelete.firstElementChild.innerHTML  
+    const token = await authFetch()      
     const response = await fetch(`${http}/delete${listQuery}`, {
         method: 'DELETE',
         headers: {
-            'content-type':'text/plain'
+            'content-type':'text/plain',
+            'Authorization': `Bearer ${token}`
         },
         body : bookToDelete.firstElementChild.innerHTML
     })        
@@ -212,10 +344,11 @@ async function deleteBook(bookToDelete) {
 }
 
 async function clearTheList() {
+    const token = await authFetch()
     const response = await fetch(`${http}/clear${listQuery}`, {
         method: 'DELETE',
-        headers: {
-            'content-type' : 'text/plain'
+        headers: {'content-type' : 'text/plain',
+            'Authorization': `Bearer ${token}`
         },
         body : "Clear the book list"
     })
@@ -254,7 +387,7 @@ const passwordInput = document.getElementById("auth-password");
 loginBtn.addEventListener("click", async () => {
     const email = emailInput.value
     const password = passwordInput.value
-    const { user, error } = await supabase.auth.signInWithPassword(email, password)
+    const { user, error } = await supabase.auth.signInWithPassword({email, password})
     if (error) {alert("Login failed" + error.message)}
     else {
         alert ("Logged in as" + user.email)
@@ -284,6 +417,7 @@ async function afterLogin() {
     loginBtn.style.display = "none";
     registerBtn.style.display = "none";
     logoutBtn.style.display = "inline";
+    forgotTxt.style.display = "none";
     currentList = user.email + "'s List";
     listQuery = `?list=${encodeURIComponent(currentList)}`;
     bookListTitle.innerText = currentList;
